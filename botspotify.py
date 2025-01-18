@@ -1,63 +1,56 @@
-import os
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
-import spotipy
+from telegram.ext import Application, CommandHandler, ContextTypes
 from spotipy.oauth2 import SpotifyClientCredentials
-from dotenv import load_dotenv
+import spotipy
 
-# Load variabel lingkungan
-load_dotenv()
+# Konfigurasi token bot Telegram
+TELEGRAM_TOKEN = "7772517833:AAGmphYFcg45QoeMlMgaCqFbp3AApshIpSE"
 
 # Konfigurasi Spotify API
-SPOTIPY_CLIENT_ID = ("d47974f0e1f04c779d0e0726676820f6")
-SPOTIPY_CLIENT_SECRET = ("2824d642eb584e86bf5d360b6766797a")
+SPOTIPY_CLIENT_ID = "d47974f0e1f04c779d0e0726676820f6"
+SPOTIPY_CLIENT_SECRET = "2824d642eb584e86bf5d360b6766797a"
+
+# Inisialisasi Spotipy
 auth_manager = SpotifyClientCredentials(
     client_id=SPOTIPY_CLIENT_ID,
     client_secret=SPOTIPY_CLIENT_SECRET
 )
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
-# Fungsi untuk menangani perintah /start
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("Halo! Saya adalah bot Spotify. Gunakan /search <judul lagu> untuk mencari lagu.")
+# Fungsi untuk perintah /start
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    await update.message.reply_text("Halo! Saya adalah bot Spotify. Gunakan perintah /search <judul lagu> untuk mencari lagu.")
 
-# Fungsi untuk menangani perintah /search
-def search(update: Update, context: CallbackContext):
-    if len(context.args) == 0:
-        update.message.reply_text("Kirimkan judul lagu setelah perintah /search.")
+# Fungsi untuk mencari lagu
+async def search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = " ".join(context.args)
+    if not query:
+        await update.message.reply_text("Harap masukkan judul lagu setelah perintah /search.")
         return
 
-    query = " ".join(context.args)
-    try:
-        results = sp.search(q=query, type="track", limit=5)
-        if results["tracks"]["items"]:
-            reply = "Hasil pencarian:\n"
-            for track in results["tracks"]["items"]:
-                reply += f"- {track['name']} oleh {track['artists'][0]['name']}\n  Link: {track['external_urls']['spotify']}\n\n"
-            update.message.reply_text(reply)
-        else:
-            update.message.reply_text("Tidak ada hasil ditemukan.")
-    except Exception as e:
-        update.message.reply_text("Terjadi kesalahan saat mencari lagu.")
-        print(e)
+    results = sp.search(q=query, type="track", limit=1)
+    if results["tracks"]["items"]:
+        track = results["tracks"]["items"][0]
+        track_name = track["name"]
+        artist_name = track["artists"][0]["name"]
+        track_url = track["external_urls"]["spotify"]
+        response = f"Lagu ditemukan: {track_name} oleh {artist_name}\nDengarkan di Spotify: {track_url}"
+    else:
+        response = "Maaf, lagu tidak ditemukan."
 
-# Main function
-def main():
-    # Token Telegram Bot
-    TELEGRAM_TOKEN = os.getenv("7772517833:AAGmphYFcg45QoeMlMgaCqFbp3AApshIpSE")
+    await update.message.reply_text(response)
 
-    # Inisialisasi Updater dan Dispatcher
-    updater = Updater(TELEGRAM_TOKEN)
-    dispatcher = updater.dispatcher
+# Fungsi utama
+def main() -> None:
+    # Buat aplikasi Telegram
+    application = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Daftarkan handler
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("search", search))
+    # Tambahkan handler untuk perintah
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("search", search))
 
     # Jalankan bot
-    print("Bot sedang berjalan...")
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 if __name__ == "__main__":
     main()
