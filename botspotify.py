@@ -9,10 +9,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Konfigurasi Spotify API
-SPOTIFY_CLIENT_ID = os.getenv("d47974f0e1f04c779d0e0726676820f6")
-SPOTIFY_CLIENT_SECRET = os.getenv("2824d642eb584e86bf5d360b6766797a")
+SPOTIPY_CLIENT_ID = os.getenv("d47974f0e1f04c779d0e0726676820f6")
+SPOTIPY_CLIENT_SECRET = os.getenv("2824d642eb584e86bf5d360b6766797a")
 auth_manager = SpotifyClientCredentials(
-    client_id=SPOTIFY_CLIENT_ID, client_secret=SPOTIFY_CLIENT_SECRET
+    client_id=SPOTIPY_CLIENT_ID,
+    client_secret=SPOTIPY_CLIENT_SECRET
 )
 sp = spotipy.Spotify(auth_manager=auth_manager)
 
