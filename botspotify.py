@@ -1,62 +1,61 @@
+import os
+import yt_dlp
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
-from spotipy.oauth2 import SpotifyClientCredentials
-import spotipy
+from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import MessageHandler, Filters
 
-# Konfigurasi token bot Telegram dan Spotify API
-TELEGRAM_TOKEN = "7772517833:AAGmphYFcg45QoeMlMgaCqFbp3AApshIpSE"
-SPOTIPY_CLIENT_ID = "d47974f0e1f04c779d0e0726676820f6"
-SPOTIPY_CLIENT_SECRET = "2824d642eb584e86bf5d360b6766797a"
+# Ganti dengan token bot Telegram kamu
+TELEGRAM_TOKEN = '7772517833:AAGmphYFcg45QoeMlMgaCqFbp3AApshIpSE'
 
-# Inisialisasi Spotify API
-auth_manager = SpotifyClientCredentials(
-    client_id=SPOTIPY_CLIENT_ID,
-    client_secret=SPOTIPY_CLIENT_SECRET
-)
-sp = spotipy.Spotify(auth_manager=auth_manager)
+# Fungsi untuk memulai bot
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("Halo! Kirimkan judul lagu atau link YouTube, dan saya akan mengirimkan link musiknya!")
 
-# Fungsi untuk menangani perintah /start
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    await update.message.reply_text(
-        "Halo! Ketikkan judul lagu untuk mencari lagu terkait. Saya akan memberikan beberapa hasil pencarian dari Spotify!"
-    )
-
-# Fungsi untuk mencari lagu
-async def search_song(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.message.text.strip()  # Ambil teks yang diketik user
-    if not query:
-        await update.message.reply_text("Harap ketik judul lagu untuk mencari.")
+# Fungsi untuk mencari musik di YouTube
+def search_song(update: Update, context: CallbackContext):
+    search_query = ' '.join(context.args)
+    if not search_query:
+        update.message.reply_text("Tolong berikan judul lagu atau link YouTube.")
         return
 
-    try:
-        # Cari lagu di Spotify
-        results = sp.search(q=query, type="track", limit=5)  # Mengambil 5 hasil teratas
-        if results["tracks"]["items"]:
-            response = "Berikut beberapa lagu yang saya temukan:\n\n"
-            for track in results["tracks"]["items"]:
-                track_name = track["name"]
-                artist_name = track["artists"][0]["name"]
-                track_url = track["external_urls"]["spotify"]
-                response += f"🎵 *{track_name}* oleh *{artist_name}*\n🔗 [Dengarkan di Spotify]({track_url})\n\n"
+    # Gunakan yt-dlp untuk mencari video di YouTube
+    ydl_opts = {
+        'quiet': True,
+        'extractaudio': True,
+        'audioquality': 1,
+        'outtmpl': 'downloads/%(id)s.%(ext)s',
+        'postprocessors': [{
+            'key': 'FFmpegAudioConvertor',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }],
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        result = ydl.extract_info(f"ytsearch:{search_query}", download=True)
+        video_url = result['entries'][0]['url']
+        audio_file = f"downloads/{result['entries'][0]['id']}.mp3"
+        
+        # Kirim file audio ke pengguna
+        if os.path.exists(audio_file):
+            update.message.reply_audio(open(audio_file, 'rb'))
         else:
-            response = "Maaf, saya tidak menemukan lagu yang sesuai dengan pencarianmu."
+            update.message.reply_text(f"Berikut adalah link video YouTube yang kamu cari: {video_url}")
 
-        # Kirim hasil ke user
-        await update.message.reply_text(response, parse_mode="Markdown")
-    except Exception as e:
-        await update.message.reply_text(f"Terjadi kesalahan: {e}")
+# Fungsi untuk memulai bot dan mendaftarkan handler
+def main():
+    # Setup Updater dan Dispatcher
+    updater = Updater(TELEGRAM_TOKEN)
+    dispatcher = updater.dispatcher
 
-# Fungsi utama
-def main() -> None:
-    # Buat aplikasi Telegram
-    application = Application.builder().token(TELEGRAM_TOKEN).build()
+    # Daftarkan handler untuk perintah start dan search
+    dispatcher.add_handler(CommandHandler('start', start))
+    dispatcher.add_handler(CommandHandler('search', search_song))
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, search_song))  # Mendengarkan pesan teks tanpa perintah
 
-    # Tambahkan handler untuk perintah /start dan pencarian lagu
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, search_song))
+    # Mulai bot
+    updater.start_polling()
+    updater.idle()
 
-    # Jalankan bot
-    application.run_polling()
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
